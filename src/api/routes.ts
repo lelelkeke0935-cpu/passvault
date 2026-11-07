@@ -133,7 +133,8 @@ export function buildApi(ctx: Ctx): Hono {
   api.get('/evidence', (c) => {
     const given = keyReachedAi(ctx, mcpContents(ctx.db));
     const n = countOutcomes(ctx.db);
-    return c.json({ keyGivenToAi: given, sent: n.sent, blocked: n.blocked, denied: n.denied, recent: proxyLogs(ctx.db, 20) });
+    const recent = proxyLogs(ctx.db, 20).map((l) => ({ ...l, agent: AGENT_NAMES[l.agent] ?? l.agent }));
+    return c.json({ keyGivenToAi: given, sent: n.sent, blocked: n.blocked, denied: n.denied, recent });
   });
 
   // tamper evidence (#21): report only, never blocks a write

@@ -136,7 +136,7 @@ function render(now:number){
  camera.lookAt(focus,phone?1.25:.9,0);
  if(moving)clouds.position.x=Math.sin(now*.00008)*.3;
  const head=robot.position.clone().add(new THREE.Vector3(0,2.5,0)).project(camera);
- speech.style.left=`${clamp(head.x*.5+.5)*100}%`;speech.style.top=`${clamp(-head.y*.5+.5)*100}%`;
+ {const half=(speech.offsetWidth||0)/2+8,px=clamp(head.x*.5+.5)*innerWidth;speech.style.left=`${Math.min(Math.max(px,half),Math.max(half,innerWidth-half))}px`;}speech.style.top=`${clamp(-head.y*.5+.5)*100}%`;
  const envelopePoint=envelopes.position.clone().add(new THREE.Vector3(.5,1.25,0)).project(camera);
  const envelopeCount=root.querySelector<HTMLElement>('.envelope-count')!;envelopeCount.hidden=!envelopes.visible;envelopeCount.style.left=`${(envelopePoint.x*.5+.5)*100}%`;envelopeCount.style.top=`${(-envelopePoint.y*.5+.5)*100}%`;
  renderer.render(scene,camera);
