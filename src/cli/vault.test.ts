@@ -145,6 +145,7 @@ describe('vault CLI and required demo', () => {
     });
     let stdout = '';
     let stderr = '';
+    const deadline = setTimeout(() => { child.kill('SIGKILL'); }, 55_000);
     const intro = setTimeout(() => { fake.stages.splice(0, fake.stages.length, 'intro'); }, 350);
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -165,6 +166,7 @@ describe('vault CLI and required demo', () => {
       expect(Date.now() - started).toBeGreaterThanOrEqual(26_000);
       expect(Date.now() - started).toBeLessThan(60_000);
     } finally {
+      clearTimeout(deadline);
       clearTimeout(intro);
       child.kill();
     }
