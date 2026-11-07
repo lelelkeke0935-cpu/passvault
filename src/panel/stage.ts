@@ -5,10 +5,13 @@ import {api, post, poll, isMock, escapeHtml, brand} from './common';
 import type {Stage, StageState} from './types';
 import './stage.css';
 import {blockedLabel, bridgeAngle, endingElapsed, closingCounts, closingPhase} from './stage-model';
+import {overlaps, placeBubble, type ScreenBox} from './stage-layout';
 
 const root=document.querySelector<HTMLDivElement>('#app')!;
 root.innerHTML=`<main class="stage" aria-label="腿庫小島"><div class="scene" aria-hidden="true"></div><div class="blocked-counter" hidden aria-live="polite"></div><div class="stage-heading" aria-live="polite"></div><div class="speech"></div><div class="envelope-count" hidden>×50</div><aside class="stage-grant"></aside><div class="key-card" hidden><small>展示用假金鑰</small><div class="key-value">sk-7Hq2-9xPf<span class="ink-swipe"></span></div><strong>AI 只看得到這樣</strong></div><div class="closing-numbers" hidden aria-live="polite"></div><div class="stage-end" hidden><div class="brand">${brand}</div><p>每一次使用，都在你的授權之內。</p><small>Give AI access. Not your secrets.</small></div><div class="stage-footer"><span>PassVault 推庫</span><span class="stage-hint">空白鍵開場</span></div><div class="connection" role="status"></div><div class="loading" role="status"><span class="loading-mark">▰</span><strong>載入中</strong><p>腿庫正在準備小島</p></div><dialog class="pass-dialog"><form><div class="brand">${brand}</div><h2>舞台通行碼</h2><p>只在這次開啟的頁面使用。</p><label for="stage-pass">通行碼</label><input id="stage-pass" type="password" autocomplete="off" required><button type="submit">進入舞台</button><p class="pass-note">請在投影前輸入。</p></form></dialog></main>`;
 const shell=root.querySelector<HTMLElement>('.stage')!;
+const keyShade=document.createElement('div');keyShade.className='key-shade';keyShade.setAttribute('aria-hidden','true');shell.append(keyShade);
+const closingScreen=document.createElement('div');closingScreen.className='closing-screen';closingScreen.hidden=true;shell.append(closingScreen);
 const sceneHost=root.querySelector<HTMLElement>('.scene')!;
 const counter=root.querySelector<HTMLElement>('.blocked-counter')!;
 let lastBlockedLabel='';
@@ -19,6 +22,8 @@ const keyCard=root.querySelector<HTMLElement>('.key-card')!;
 const numbersCard=root.querySelector<HTMLElement>('.closing-numbers')!;
 let closingSnapshot:ReturnType<typeof closingCounts>|undefined;
 const endCard=root.querySelector<HTMLElement>('.stage-end')!;
+closingScreen.append(numbersCard,endCard);
+const mascot=document.createElement('img');mascot.className='closing-mascot';mascot.alt='開心眨眼的腿庫';mascot.src=new URL('./assets/stage/corgi-wink.webp',import.meta.url).href;endCard.append(mascot);
 const connection=root.querySelector<HTMLElement>('.connection')!;
 const dialog=root.querySelector<HTMLDialogElement>('dialog')!;
 let stageToken='', ready=false, busy=false;
@@ -89,11 +94,67 @@ function setState(next:Stage){
  if(data.state==='blocked')grantCard.innerHTML=`<span class="card-eyebrow">已擋下，等你授權</span><h2>${escapeHtml(data.grant?.summary||'要寄給 50 人')}</h2><p class="once">只限這一次</p><dl><div><dt>誰提出請求</dt><dd>${escapeHtml(data.grant?.agent||'AI')}</dd></div><div><dt>使用的金鑰</dt><dd>${escapeHtml(data.grant?.secretName||'—')}</dd></div></dl><div class="phone-hint">請在手機按「授權這一次」</div>`;
  root.querySelector<HTMLElement>('.stage-hint')!.textContent=data.state==='idle'?'空白鍵開場':isMock?'示範模式':'';
 }
-function resize(){const width=innerWidth,height=innerHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();shell.classList.toggle('portrait',width<height);}
+let viewport={x:0,y:0,width:0,height:0},lastFrame=0;
+function resize(){shell.classList.toggle('portrait',innerWidth<innerHeight);viewport.width=0;}
+const sceneBounds=new THREE.Box3(new THREE.Vector3(-6.5,-2,-3),new THREE.Vector3(7.6,4.6,3));
+const corners:THREE.Vector3[]=[];
+for(const x of [sceneBounds.min.x,sceneBounds.max.x])for(const y of [sceneBounds.min.y,sceneBounds.max.y])for(const z of [sceneBounds.min.z,sceneBounds.max.z])corners.push(new THREE.Vector3(x,y,z));
+function screenBox(element:HTMLElement):ScreenBox {const r=element.getBoundingClientRect();return {x:r.left,y:r.top,width:r.width,height:r.height};}
+function projectPoint(point:THREE.Vector3){const p=point.clone().project(camera);return {x:viewport.x+(p.x*.5+.5)*viewport.width,y:viewport.y+(-p.y*.5+.5)*viewport.height};}
+function projectedBox(points:THREE.Vector3[]):ScreenBox {const projected=points.map(projectPoint),xs=projected.map(p=>p.x),ys=projected.map(p=>p.y);const x=Math.min(...xs),y=Math.min(...ys);return {x,y,width:Math.max(...xs)-x,height:Math.max(...ys)-y};}
+// Fit the entire story into a reserved viewport, including the raised bridge and flying props.
+function fitScene(){
+ const target=new THREE.Vector3(.55,1.3,0),direction=new THREE.Vector3(3,5.7,18.8).normalize();
+ camera.position.copy(target).add(direction);camera.lookAt(target);camera.updateMatrixWorld(true);
+ const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+ const tangent=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));let distance=0;
+ for(const corner of corners){const delta=corner.clone().sub(target),depth=delta.dot(direction);distance=Math.max(distance,depth+Math.abs(delta.dot(right))/(tangent*camera.aspect*.91),depth+Math.abs(delta.dot(up))/(tangent*.91));}
+ camera.position.copy(target).addScaledVector(direction,distance);camera.lookAt(target);camera.updateMatrixWorld(true);
+}
+function layoutStage(now:number,ending:boolean,modal:boolean){
+ const width=shell.clientWidth||innerWidth,height=shell.clientHeight||innerHeight,phone=width<height,gap=phone?12:20;
+ const dt=Math.min(.1,Math.max(0,(now-lastFrame)/1000));lastFrame=now;
+ const rail=!grantCard.hidden;
+ speech.style.maxWidth=`${phone?width-gap*2:rail?width-grantCard.offsetWidth-gap*3:width-gap*2}px`;
+ shell.classList.toggle('key-modal',modal);shell.classList.toggle('is-ending',ending);
+ // The counter and envelope badge own the first row; the headline owns the second.
+ const badge=root.querySelector<HTMLElement>('.envelope-count')!;
+ const firstRow=Math.max(counter.hidden?0:counter.offsetHeight,badge.hidden?0:badge.offsetHeight);
+ const headingTop=gap+(firstRow?firstRow+gap:0);
+ heading.style.top=`${headingTop}px`;
+ const headingBottom=headingTop+(heading.hidden?0:heading.offsetHeight);
+ const speechHeight=speech.hidden?0:speech.offsetHeight+20;
+ const top=headingBottom+gap+speechHeight;
+ const footer=phone?46:50;
+ grantCard.style.top=phone?'auto':`${headingBottom+gap}px`;
+ grantCard.style.maxHeight=`${phone?height*.36:height-headingBottom-gap-footer}px`;
+ const railBox=screenBox(grantCard);
+ const target={x:gap,y:top,width:width-gap*2,height:Math.max(80,height-top-footer)};
+ if(rail){if(phone)target.height=Math.max(80,railBox.y-gap-top);else target.width=Math.max(80,railBox.x-gap*2);}
+ const blend=reduced.matches||!viewport.width?1:1-Math.exp(-dt*12);
+ viewport.y=target.y;
+ for(const key of ['x','width','height'] as const)viewport[key]=Math.abs(viewport[key]-target[key])<.5?target[key]:lerp(viewport[key],target[key],blend);
+ viewport.height=Math.min(viewport.height,height-viewport.y-footer);
+ // Hide the incoming card until its lane is clear, including during viewport interpolation.
+ const clear=!overlaps({x:viewport.x,y:viewport.y,width:viewport.width,height:viewport.height},railBox,2);
+ grantCard.classList.toggle('rail-ready',rail&&clear);
+ sceneHost.style.left=`${viewport.x}px`;sceneHost.style.top=`${viewport.y}px`;sceneHost.style.width=`${viewport.width}px`;sceneHost.style.height=`${viewport.height}px`;
+ const renderWidth=Math.round(viewport.width),renderHeight=Math.round(viewport.height);
+ if(renderer.domElement.width!==Math.floor(renderWidth*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(renderHeight*renderer.getPixelRatio()))renderer.setSize(renderWidth,renderHeight,false);
+ camera.aspect=viewport.width/viewport.height;camera.updateProjectionMatrix();fitScene();
+ if(!speech.hidden){
+  const head=projectPoint(robot.position.clone().add(new THREE.Vector3(0,2.5,0)));
+  const obstacles=[projectedBox(corners)];
+  for(const element of [heading,counter,badge,grantCard,keyCard])if(!element.hidden)obstacles.push(screenBox(element));
+  const fallback={x:gap,y:headingBottom+gap};
+  const result=placeBubble(speech.offsetWidth,speech.offsetHeight,head,obstacles,{x:gap,y:headingBottom+gap,width:width-gap*2,height:height-headingBottom-gap-footer},fallback);
+  speech.style.left=`${result.x}px`;speech.style.top=`${result.y}px`;speech.dataset.tail=result.tail;
+ }
+}
 const lerp=THREE.MathUtils.lerp;const clamp=(n:number)=>THREE.MathUtils.clamp(n,0,1);
 function render(now:number){
  if(!ready)return;
- const t=(now-stateStart)/1000,s=data.state,phone=innerWidth<innerHeight;
+ const t=(now-stateStart)/1000,s=data.state;
  const endTime=endingElapsed(s,t);
  ending=endTime!==null;
  const endElapsed=endTime??0;
@@ -118,9 +179,12 @@ function render(now:number){
  if(s==='sent'){const progress=clamp(t/2.3);envelopes.position.set(lerp(-.7,4.9,moving?progress:1),lerp(1.25,.65,progress),.4);envelopes.material.opacity=moving?1:1-progress;if(t>2.3)envelopes.visible=false;}else{envelopes.material.opacity=1;}
  if(s==='denied'){envelopes.position.x=lerp(-.7,-4.4,clamp((t-2)/2));if(t>4)envelopes.visible=false;}
  props.forEach((prop,i)=>{const progress=clamp((t-i*1.05)/1.5);prop.visible=s==='intro'&&t>i*1.05&&progress<1;prop.position.set(lerp(-3.8+i*.7,4.9,moving?progress:1),1.8+Math.sin(progress*Math.PI)*1.4,1.2);prop.material.opacity=moving?1:1-progress;});
- keyCard.hidden=s!=='masked';keyCard.classList.toggle('masked',s==='masked'&&t>=1);keyCard.classList.toggle('flying',s==='masked'&&t>=4.5);
+ const keyFlight=clamp((t-2.7)/.6),keyModal=s==='masked'&&keyFlight<1;
+ keyCard.hidden=s!=='masked';keyCard.classList.toggle('masked',s==='masked'&&t>=1);keyCard.classList.toggle('flying',s==='masked'&&t>=2.7);
+ keyShade.style.opacity=s==='masked'?String(1-clamp((t-2.7)/.3)):'0';
+ speech.hidden=speech.hidden||keyModal;
  sceneHost.style.opacity=reduced.matches?String(clamp(t/.2)):'1';
- keyCard.style.opacity=reduced.matches&&s==='masked'&&t>4.5?String(1-clamp((t-4.5)/1.6)):'1';
+ keyCard.style.opacity='1';
  if(ending&&closingSnapshot===undefined){
   closingSnapshot=closingCounts(data);
   numbersCard.innerHTML=closingSnapshot?closingSnapshot.map((count,index)=>`<div class="closing-stat"><span>${['AI 拿到金鑰','擋下','你授權'][index]}</span><strong>${count}<small>次</small></strong></div>`).join(''):'';
@@ -128,17 +192,24 @@ function render(now:number){
  const phase=closingPhase(endElapsed,!!closingSnapshot);
  numbersCard.hidden=!ending||phase!=='numbers';
  endCard.hidden=!ending||phase!=='brand';
+ // Fade during the last half-second of the existing settle beat, before the numbers.
+ closingScreen.hidden=!ending||endElapsed<1.1;
+ closingScreen.style.opacity=ending?String(reduced.matches?1:clamp((endElapsed-1.1)/.5)):'0';
  counter.classList.toggle('faded',ending);
- if(ending){heading.hidden=true;speech.hidden=true;grantCard.hidden=true;}
- const focus=phone?(ending||s==='locked'?3.7:s==='intro'?2:s==='masked'?-1.2:-.7):.4;
- const desired=new THREE.Vector3(focus+(phone?2.1:3),phone?7:6.6,phone?(s==='locked'?30:28):(s==='locked'?21:18.8));
- if(!moving)camera.position.copy(desired);else camera.position.lerp(desired,.055);
- camera.lookAt(focus,phone?1.25:.9,0);
+ if(ending){heading.hidden=true;speech.hidden=true;grantCard.hidden=true;keyCard.hidden=true;}
  if(moving)clouds.position.x=Math.sin(now*.00008)*.3;
- const head=robot.position.clone().add(new THREE.Vector3(0,2.5,0)).project(camera);
- {const half=(speech.offsetWidth||0)/2+8,px=clamp(head.x*.5+.5)*innerWidth;speech.style.left=`${Math.min(Math.max(px,half),Math.max(half,innerWidth-half))}px`;}speech.style.top=`${clamp(-head.y*.5+.5)*100}%`;
- const envelopePoint=envelopes.position.clone().add(new THREE.Vector3(.5,1.25,0)).project(camera);
- const envelopeCount=root.querySelector<HTMLElement>('.envelope-count')!;envelopeCount.hidden=!envelopes.visible;envelopeCount.style.left=`${(envelopePoint.x*.5+.5)*100}%`;envelopeCount.style.top=`${(-envelopePoint.y*.5+.5)*100}%`;
+ const envelopeCount=root.querySelector<HTMLElement>('.envelope-count')!;envelopeCount.hidden=!envelopes.visible||ending;
+ layoutStage(now,ending,keyModal);
+ if(s==='masked'){
+  const hand=projectPoint(robot.position.clone().add(new THREE.Vector3(.35,1.2,.1)));
+  const originY=Math.max(innerHeight*.5,heading.getBoundingClientRect().bottom+keyCard.offsetHeight/2+20);
+  const progress=reduced.matches?(keyFlight>0?1:0):1-Math.pow(1-keyFlight,3);
+  const robotWidth=projectedBox([robot.position.clone().add(new THREE.Vector3(-.6,0,0)),robot.position.clone().add(new THREE.Vector3(.6,0,0))]).width;
+  const finalScale=Math.min(.18,Math.max(.055,robotWidth*.75/keyCard.offsetWidth));
+  keyCard.style.left=`${lerp(innerWidth*.5,hand.x,progress)}px`;
+  keyCard.style.top=`${lerp(originY,hand.y,progress)}px`;
+  keyCard.style.transform=`translate(-50%,-50%) scale(${lerp(1,finalScale,progress)})`;
+ }
  renderer.render(scene,camera);
  requestAnimationFrame(render);
 }
