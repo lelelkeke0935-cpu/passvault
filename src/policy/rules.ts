@@ -56,11 +56,15 @@ export function decide(secret: string, method: string, path: string, body: unkno
   return { rule: 'deny', label: '規則以外的動作' };
 }
 
-/** How the grant summary describes an action (no agent name: the panel adds who asked). */
+const LIST_SIZES: Record<string, number> = { customers: 50 };
+
+/** Short, stage-sized summary of the action (no agent name: the panel adds who asked; "only once" is shown separately). */
 export function describe(label: string, path: string, body: any): string {
   const list = path.match(/^\/sandbox\/mail\/lists\/([^/]+)\/send$/);
-  if (list) return `${label}「${decodeURIComponent(list[1])}」（只限一次，5 分鐘內有效）`;
+  if (list) {
+    const id = decodeURIComponent(list[1]);
+    return LIST_SIZES[id] ? `寄給 ${LIST_SIZES[id]} 人` : `寄給整份名單「${id}」`;
+  }
   const n = recipients(body);
-  if (n > 1) return `寄給 ${n} 位收件人（只限一次，5 分鐘內有效）`;
-  return `${label}（只限一次，5 分鐘內有效）`;
+  return n > 1 ? `寄給 ${n} 人` : label;
 }

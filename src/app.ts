@@ -8,6 +8,8 @@ import type { Ctx, Env } from './core/context.ts';
 import { openDb } from './core/db.ts';
 import { Stage } from './core/stage.ts';
 import { Vault } from './core/vault.ts';
+import { chainHash, deriveAuditKey } from './audit/chain.ts';
+import { setChainHasher } from './core/logs.ts';
 
 // npm start runs from the package root, so static paths are relative to it.
 const PANEL = './dist/panel';
@@ -37,6 +39,8 @@ export async function createApp(opts: AppOptions): Promise<{ app: Hono; ctx: Ctx
   const db = openDb(opts.dataDir);
   const vault = new Vault(db, opts.blobs ?? blobStoreFromEnv(process.env, opts.dataDir));
   vault.unlock(opts.masterPassword);
+  const auditKey = deriveAuditKey(vault.vaultKey);
+  setChainHasher((prev, row) => chainHash(prev, row, auditKey));
   vault.ensureApiKey('SANDBOX_MAIL_KEY', opts.sandboxKey);
   if (opts.seed !== false) await seed(vault);
 

@@ -2,11 +2,12 @@ import { Hono, type Context } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import type { Ctx } from '../core/context.ts';
 import { lock, lockState, unlock } from '../core/lockdown.ts';
-import { countOutcomes, mcpContents, proxyLogs } from '../core/logs.ts';
+import { chainRows, countOutcomes, mcpContents, proxyLogs } from '../core/logs.ts';
+import { deriveAuditKey, GENESIS, verifyChain } from '../audit/chain.ts';
 import { ITEM_TYPES, QuotaError, type ItemType } from '../core/vault.ts';
 import { POLICIES } from '../policy/rules.ts';
 import { allowGrant, callApi, denyGrant, getGrant, type CallRequest, type GrantRow } from '../proxy/call.ts';
-import { variants } from '../proxy/leak.ts';
+import { keyReachedAi } from '../proxy/leak.ts';
 
 function same(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b) return false;
@@ -129,10 +130,15 @@ export function buildApi(ctx: Ctx): Hono {
 
   // ---- evidence
   api.get('/evidence', (c) => {
-    const keys = ctx.vault.secretValues(['api_key']).map((s) => s.value).filter((v) => v.length >= 8);
-    const given = mcpContents(ctx.db).some((t) => keys.some((k) => variants(k).some((v) => t.includes(v))));
+    const given = keyReachedAi(ctx, mcpContents(ctx.db));
     const n = countOutcomes(ctx.db);
     return c.json({ keyGivenToAi: given, sent: n.sent, blocked: n.blocked, denied: n.denied, recent: proxyLogs(ctx.db, 20) });
+  });
+
+  // tamper evidence (#21): report only, never blocks a write
+  api.get('/evidence/verify', (c) => {
+    const rows = chainRows(ctx.db).map((r) => ({ ...r, prevHash: r.prevHash ?? GENESIS, hash: r.hash ?? '' }));
+    return c.json(verifyChain(rows, deriveAuditKey(ctx.vault.vaultKey)));
   });
 
   // ---- stage

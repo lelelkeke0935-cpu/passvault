@@ -144,6 +144,8 @@ describe('proxy', () => {
     expect(ev.keyGivenToAi).toBe(false);
     expect(ev.sent).toBe(1);
     expect(ev.blocked).toBe(1);
+    const v = await (await app.request('/api/evidence/verify')).json();
+    expect(v).toMatchObject({ ok: true, count: 2 });
     expect(Object.keys(ev.recent[0]).sort()).toEqual(['agent', 'at', 'grantId', 'id', 'method', 'outcome', 'reason', 'secret', 'url']);
     const secrets = await (await app.request('/api/secrets', { headers: AGENT })).json();
     expect(secrets).toEqual([{ name: 'SANDBOX_MAIL_KEY', service: '測試用寄信 API', allowHosts: ['127.0.0.1', 'localhost'] }]);
@@ -157,7 +159,7 @@ describe('proxy', () => {
     await call(listSend);
     const r = await (await app.request('/api/remote?token=phone-tok')).json();
     expect(r.state).toBe('blocked');
-    expect(r.grant.summary).toContain('只限一次');
+    expect(r.grant.summary).toBe('寄給 50 人');
     expect((await app.request('/api/stage/intro', { method: 'POST' })).status).toBe(401);
     expect((await app.request('/api/stage/intro', { method: 'POST', headers: STAGE })).status).toBe(200);
   });
