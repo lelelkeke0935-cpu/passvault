@@ -81,3 +81,8 @@
  .card-eyebrow{font-size:14px}.phone-hint{font-size:14px;margin-top:10px;padding-top:10px}
  .stage-heading{font-size:30px;padding:8px 24px}.speech{font-size:18px}
 }
+
+/* Object labels use screen-projected sprite anchors at every frame. */
+.envelope-count{right:auto;bottom:auto;transform:none;white-space:nowrap}
+.speech[data-tail=bottom]:after{left:calc(50% - 7px);bottom:-9px;top:auto;transform:rotate(45deg)}
+@media(orientation:portrait){.envelope-count{font-size:14px;padding:4px 7px}}

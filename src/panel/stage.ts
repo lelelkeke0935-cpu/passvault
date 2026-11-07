@@ -76,7 +76,7 @@ const threshold=mesh(new THREE.BoxGeometry(.12,.7,1.38),new THREE.MeshBasicMater
 threshold.visible=false;
 const textures=new Map<string,THREE.Texture>();
 function sprite(name:string,height:number){const mat=new THREE.SpriteMaterial({map:textures.get(name),transparent:true,depthWrite:false,toneMapped:false});const obj=new THREE.Sprite(mat);const size=meta[name as keyof typeof meta];obj.scale.set(height*size[0]/size[1],height,1);obj.center.set(.5,0);world.add(obj);return obj;}
-function outfit(obj:THREE.Sprite,name:string,height:number){if(obj.userData.outfit===name)return;obj.userData.outfit=name;obj.material.map=textures.get(name)!;obj.material.needsUpdate=true;const size=meta[name as keyof typeof meta];obj.scale.set(height*size[0]/size[1],height,1);}
+function outfit(obj:THREE.Sprite,name:string,height:number){if(obj.userData.outfit===name&&obj.scale.y===height)return;obj.userData.outfit=name;obj.material.map=textures.get(name)!;obj.material.needsUpdate=true;const size=meta[name as keyof typeof meta];obj.scale.set(height*size[0]/size[1],height,1);}
 let corgi:THREE.Sprite,robot:THREE.Sprite,envelopes:THREE.Sprite;
 const props:THREE.Sprite[]=[];
 function setState(next:Stage){
@@ -96,35 +96,56 @@ function setState(next:Stage){
 }
 let viewport={x:0,y:0,width:0,height:0},lastFrame=0;
 function resize(){shell.classList.toggle('portrait',innerWidth<innerHeight);viewport.width=0;}
-const sceneBounds=new THREE.Box3(new THREE.Vector3(-6.5,-2,-3),new THREE.Vector3(7.6,4.6,3));
-const corners:THREE.Vector3[]=[];
-for(const x of [sceneBounds.min.x,sceneBounds.max.x])for(const y of [sceneBounds.min.y,sceneBounds.max.y])for(const z of [sceneBounds.min.z,sceneBounds.max.z])corners.push(new THREE.Vector3(x,y,z));
 function screenBox(element:HTMLElement):ScreenBox {const r=element.getBoundingClientRect();return {x:r.left,y:r.top,width:r.width,height:r.height};}
 function projectPoint(point:THREE.Vector3){const p=point.clone().project(camera);return {x:viewport.x+(p.x*.5+.5)*viewport.width,y:viewport.y+(-p.y*.5+.5)*viewport.height};}
 function projectedBox(points:THREE.Vector3[]):ScreenBox {const projected=points.map(projectPoint),xs=projected.map(p=>p.x),ys=projected.map(p=>p.y);const x=Math.min(...xs),y=Math.min(...ys);return {x,y,width:Math.max(...xs)-x,height:Math.max(...ys)-y};}
-// Fit the entire story into a reserved viewport, including the raised bridge and flying props.
+// Sprites face the camera: their head/corner anchors use camera axes, not world Y.
+function spriteCorners(obj:THREE.Sprite){
+ const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+ const center=obj.getWorldPosition(new THREE.Vector3());
+ return [0,1].flatMap(x=>[0,1].map(y=>center.clone().addScaledVector(right,(x-obj.center.x)*obj.scale.x).addScaledVector(up,(y-obj.center.y)*obj.scale.y)));
+}
+function spriteBox(obj:THREE.Sprite){return projectedBox(spriteCorners(obj));}
+// Fit actual geometry and attached labels, avoiding a large empty bounding cuboid.
 function fitScene(){
- const target=new THREE.Vector3(.55,1.3,0),direction=new THREE.Vector3(3,5.7,18.8).normalize();
- camera.position.copy(target).add(direction);camera.lookAt(target);camera.updateMatrixWorld(true);
+ const target=new THREE.Vector3(.55,.7,0),direction=new THREE.Vector3(3,5.7,18.8).normalize();
+ camera.position.copy(target).add(direction);camera.lookAt(target);camera.updateMatrixWorld(true);world.updateMatrixWorld(true);
  const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
  const tangent=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));let distance=0;
- for(const corner of corners){const delta=corner.clone().sub(target),depth=delta.dot(direction);distance=Math.max(distance,depth+Math.abs(delta.dot(right))/(tangent*camera.aspect*.91),depth+Math.abs(delta.dot(up))/(tangent*.91));}
+ function include(point:THREE.Vector3,padX=0,padTop=0){
+  const delta=point.clone().sub(target),depth=delta.dot(direction),x=delta.dot(right),y=delta.dot(up);
+  const roomX=Math.max(.12,.96-2*padX/viewport.width),roomY=Math.max(.12,.96-2*(y>0?padTop:0)/viewport.height);
+  distance=Math.max(distance,depth+Math.abs(x)/(tangent*camera.aspect*roomX),depth+Math.abs(y)/(tangent*roomY));
+ }
+ world.traverseVisible(obj=>{
+  if(obj instanceof THREE.Mesh){
+   const geometry=obj.geometry;
+   if(!geometry.boundingBox)geometry.computeBoundingBox();
+   const box=geometry.boundingBox!;
+   for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z])include(new THREE.Vector3(x,y,z).applyMatrix4(obj.matrixWorld));
+  }else if(obj instanceof THREE.Sprite){for(const point of spriteCorners(obj))include(point);}
+ });
+ if(!speech.hidden){
+  const head=robot.getWorldPosition(new THREE.Vector3()).addScaledVector(up,robot.scale.y);
+  include(head,speech.offsetWidth/2+8,speech.offsetHeight+22);
+ }
+ const badge=root.querySelector<HTMLElement>('.envelope-count')!;
+ if(!badge.hidden){const corners=spriteCorners(envelopes);include(corners[3],badge.offsetWidth+8,badge.offsetHeight+18);}
  camera.position.copy(target).addScaledVector(direction,distance);camera.lookAt(target);camera.updateMatrixWorld(true);
 }
 function layoutStage(now:number,ending:boolean,modal:boolean){
- const width=shell.clientWidth||innerWidth,height=shell.clientHeight||innerHeight,phone=width<height,gap=phone?12:20;
+ const width=shell.clientWidth||innerWidth,height=shell.clientHeight||innerHeight,phone=width<height,gap=phone?12:height<=600?16:20;
  const dt=Math.min(.1,Math.max(0,(now-lastFrame)/1000));lastFrame=now;
  const rail=!grantCard.hidden;
- speech.style.maxWidth=`${phone?width-gap*2:rail?width-grantCard.offsetWidth-gap*3:width-gap*2}px`;
+ speech.style.maxWidth=`${phone?112:rail?width-grantCard.offsetWidth-gap*3:width-gap*2}px`;
  shell.classList.toggle('key-modal',modal);shell.classList.toggle('is-ending',ending);
- // The counter and envelope badge own the first row; the headline owns the second.
+ // Share the top row when clear; labels on scene objects never reserve a screen row.
  const badge=root.querySelector<HTMLElement>('.envelope-count')!;
- const firstRow=Math.max(counter.hidden?0:counter.offsetHeight,badge.hidden?0:badge.offsetHeight);
- const headingTop=gap+(firstRow?firstRow+gap:0);
+ let headingTop=gap;
  heading.style.top=`${headingTop}px`;
+ if(!counter.hidden&&!heading.hidden&&overlaps(screenBox(heading),screenBox(counter),gap)){headingTop=gap+counter.offsetHeight+gap;heading.style.top=`${headingTop}px`;}
  const headingBottom=headingTop+(heading.hidden?0:heading.offsetHeight);
- const speechHeight=speech.hidden?0:speech.offsetHeight+20;
- const top=headingBottom+gap+speechHeight;
+ const top=headingBottom+gap;
  const footer=phone?46:50;
  grantCard.style.top=phone?'auto':`${headingBottom+gap}px`;
  grantCard.style.maxHeight=`${phone?height*.36:height-headingBottom-gap-footer}px`;
@@ -142,14 +163,18 @@ function layoutStage(now:number,ending:boolean,modal:boolean){
  const renderWidth=Math.round(viewport.width),renderHeight=Math.round(viewport.height);
  if(renderer.domElement.width!==Math.floor(renderWidth*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(renderHeight*renderer.getPixelRatio()))renderer.setSize(renderWidth,renderHeight,false);
  camera.aspect=viewport.width/viewport.height;camera.updateProjectionMatrix();fitScene();
+ if(!badge.hidden){
+  const box=spriteBox(envelopes);
+  badge.hidden=box.x+box.width<viewport.x||box.x>viewport.x+viewport.width||box.y+box.height<viewport.y||box.y>viewport.y+viewport.height;
+  badge.style.left=`${box.x+box.width-4}px`;badge.style.top=`${box.y-badge.offsetHeight-12}px`;
+ }
  if(!speech.hidden){
-  const head=projectPoint(robot.position.clone().add(new THREE.Vector3(0,2.5,0)));
-  const obstacles=[projectedBox(corners)];
-  for(const element of [heading,counter,badge,grantCard,keyCard])if(!element.hidden)obstacles.push(screenBox(element));
-  const fallback={x:gap,y:headingBottom+gap};
-  const result=placeBubble(speech.offsetWidth,speech.offsetHeight,head,obstacles,{x:gap,y:headingBottom+gap,width:width-gap*2,height:height-headingBottom-gap-footer},fallback);
+  const box=spriteBox(robot),head={x:box.x+box.width/2,y:box.y,right:box.x+box.width};
+  const obstacles=[heading,counter].filter(element=>!element.hidden).map(screenBox);
+  const result=placeBubble(speech.offsetWidth,speech.offsetHeight,head,obstacles);
   speech.style.left=`${result.x}px`;speech.style.top=`${result.y}px`;speech.dataset.tail=result.tail;
  }
+
 }
 const lerp=THREE.MathUtils.lerp;const clamp=(n:number)=>THREE.MathUtils.clamp(n,0,1);
 function render(now:number){
@@ -174,10 +199,12 @@ function render(now:number){
  if(['allowed','sent'].includes(s)){corgi.position.z=1.15;if(moving&&s==='allowed')corgi.position.y+=Math.max(0,Math.sin(Math.min(t,1)*Math.PI))*.6;}
  if(s==='locked'){const hop=moving?clamp(t/.5):1;corgi.position.set(lerp(2.25,2.95,hop),.14+(moving?Math.sin(hop*Math.PI)*.65:0),lerp(.6,1.15,hop));}
  if(ending)corgi.position.set(4.5,.15,1);
+ outfit(envelopes,'prop-envelopes',innerWidth<innerHeight?1.05:1.6);
  envelopes.visible=['blocked','allowed','sent','denied'].includes(s)&&!ending;
  envelopes.position.set(-.7,1.25,.15);
  if(s==='sent'){const progress=clamp(t/2.3);envelopes.position.set(lerp(-.7,4.9,moving?progress:1),lerp(1.25,.65,progress),.4);envelopes.material.opacity=moving?1:1-progress;if(t>2.3)envelopes.visible=false;}else{envelopes.material.opacity=1;}
- if(s==='denied'){envelopes.position.x=lerp(-.7,-4.4,clamp((t-2)/2));if(t>4)envelopes.visible=false;}
+ // Return beside the robot, below its attached speech bubble; keep the same timing.
+ if(s==='denied'){const progress=clamp((t-2)/2);envelopes.position.set(lerp(-.7,-2.8,progress),lerp(1.25,innerWidth<innerHeight?-.9:-.45,progress),lerp(.15,1.4,progress));if(t>4)envelopes.visible=false;}
  props.forEach((prop,i)=>{const progress=clamp((t-i*1.05)/1.5);prop.visible=s==='intro'&&t>i*1.05&&progress<1;prop.position.set(lerp(-3.8+i*.7,4.9,moving?progress:1),1.8+Math.sin(progress*Math.PI)*1.4,1.2);prop.material.opacity=moving?1:1-progress;});
  const keyFlight=clamp((t-2.7)/.6),keyModal=s==='masked'&&keyFlight<1;
  keyCard.hidden=s!=='masked';keyCard.classList.toggle('masked',s==='masked'&&t>=1);keyCard.classList.toggle('flying',s==='masked'&&t>=2.7);
