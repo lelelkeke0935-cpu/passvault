@@ -3,6 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { buildApi } from './api/routes.ts';
+import { buildLeads } from './api/leads.ts';
 import { type BlobStore, blobStoreFromEnv } from './core/blobstore.ts';
 import type { Ctx, Env } from './core/context.ts';
 import { openDb } from './core/db.ts';
@@ -54,6 +55,7 @@ export async function createApp(opts: AppOptions): Promise<{ app: Hono; ctx: Ctx
   };
 
   app.get('/healthz', (c) => c.json({ ok: true }));
+  app.route('/api/leads', buildLeads(ctx));
   app.route('/api', buildApi(ctx));
 
   // The test mail API (src/sandbox, written by WDEV Claude) is mounted when present.
@@ -70,6 +72,7 @@ export async function createApp(opts: AppOptions): Promise<{ app: Hono; ctx: Ctx
   app.get('/stage', page('stage.html'));
   app.get('/m/grants/:id', page('m.html'));
   app.get('/m/remote', page('remote.html'));
+  app.get('/join', page('join.html'));
   app.use('/*', serveStatic({ root: PANEL }));
 
   return { app, ctx };
