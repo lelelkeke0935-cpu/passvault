@@ -25,8 +25,10 @@ export function closingCounts(stage: Stage): [number, number, number] | null {
     ? [0, stage.blockedCount, stage.allowedCount] : null;
 }
 
-export function closingPhase(elapsed: number, hasCounts: boolean): 'settle'|'numbers'|'brand' {
+export function closingPhase(elapsed: number, hasCounts: boolean): 'settle'|'numbers'|'brand'|'contact' {
   if (elapsed < 1.6) return 'settle';
   if (hasCounts && elapsed < 4.1) return 'numbers';
-  return 'brand';
+  if (elapsed < 8.6) return 'brand';
+  // Kyle 11-07: after the brand, a contact screen with a mail QR stays up so the audience can scan it.
+  return 'contact';
 }

@@ -86,3 +86,14 @@
 .envelope-count{right:auto;bottom:auto;transform:none;white-space:nowrap}
 .speech[data-tail=bottom]:after{left:calc(50% - 7px);bottom:-9px;top:auto;transform:rotate(45deg)}
 @media(orientation:portrait){.envelope-count{font-size:14px;padding:4px 7px}}
+
+.closing-contact{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5vw;align-items:center;width:min(1700px,92vw);text-align:left}
+.closing-contact .brand{font-size:min(9vh,6vw);gap:1.4vw;line-height:1.1}
+.closing-contact .brand>span:last-child{display:flex;align-items:center;gap:1.2vw}
+.closing-contact .brand small{font-size:.4em;white-space:nowrap}
+.closing-contact .brand-mark{width:1.1em;height:1.1em;font-size:.8em;border-radius:.2em}
+.contact-say{font-size:min(6vh,4vw);font-weight:900;line-height:1.3;margin:3vh 0}
+.contact-say b{color:#c4423a}
+.contact-mail{display:inline-block;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-weight:700;font-size:min(3.6vh,2.4vw);background:#fff;border-radius:999px;padding:1.4vh 2.2vw}
+.contact-qr{display:block;height:min(72vh,44vw);width:auto;aspect-ratio:1;background:#fff;border-radius:3vh;padding:1.6vh;box-shadow:inset 0 0 0 4px #28293914}
+@media(orientation:portrait){.closing-contact{grid-template-columns:1fr;justify-items:center;text-align:center;gap:3vh}.closing-contact .brand{font-size:9vw;justify-content:center}.contact-say{font-size:6vw;margin:2vh 0}.contact-mail{font-size:4.2vw;padding:10px 18px}.contact-qr{height:auto;width:78vw}}
