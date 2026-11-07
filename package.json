@@ -1,0 +1,42 @@
+{
+  "name": "passvault",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PassVault: a vault for passwords, API keys, documents and photos. AI can use a key without ever seeing it.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "vault": "tsx src/cli/vault.ts",
+    "mcp": "tsx src/mcp/server.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1145.0",
+    "@hono/node-server": "1.13.7",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "better-sqlite3": "11.5.0",
+    "hono": "4.6.10",
+    "tsx": "4.19.2",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.11",
+    "@types/node": "24.0.0",
+    "@types/three": "0.160.0",
+    "three": "0.160.0",
+    "typescript": "5.6.3",
+    "vite": "5.4.10",
+    "vitest": "2.1.5"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.5.0": true,
+    "esbuild@0.23.1": true,
+    "esbuild@0.21.5": true
+  }
+}
