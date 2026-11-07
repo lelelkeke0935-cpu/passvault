@@ -15,6 +15,14 @@ describe('vault HTTP client', () => {
     expect(fake.requests.map((r) => r.path)).toEqual(['/api/secrets', '/api/grants/g_demo']);
   });
 
+  it('accepts epoch timestamps as well as ISO timestamps from the contract', async () => {
+    fake.grant.createdAt = Date.now();
+    fake.grant.expiresAt = Date.now() + 300_000;
+    const grant = await fake.client.getGrant('g_demo');
+    expect(grant.createdAt).toBe(fake.grant.createdAt);
+    expect(grant.expiresAt).toBe(fake.grant.expiresAt);
+  });
+
   it('does not expose server error bodies or malformed responses', async () => {
     fake.state.unsafeBody = randomUUID();
     fake.state.secretsStatus = 503;

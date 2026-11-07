@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// The API contract names timestamps without requiring ISO text versus epoch numbers.
+const timestampSchema = z.union([z.string(), z.number()]);
+
 const secretSchema = z.object({
   name: z.string(),
   service: z.string(),
@@ -12,8 +15,8 @@ const grantSchema = z.object({
   secretName: z.string(),
   summary: z.string(),
   status: z.enum(['pending', 'allowed', 'denied', 'used', 'expired', 'revoked']),
-  createdAt: z.string(),
-  expiresAt: z.string(),
+  createdAt: timestampSchema,
+  expiresAt: timestampSchema,
   phoneUrl: z.string().url(),
 });
 
@@ -128,7 +131,7 @@ export function createClient(options: ClientOptions = {}) {
     addSecret: (name: string, type: SecretType, value: string) =>
       request('/api/items', z.object({ id: z.string(), encrypted: z.literal(true) }), { type, name, value }),
     getStage: () => request('/api/stage', stageSchema),
-    getLockdown: () => request('/api/lockdown', z.object({ locked: z.boolean(), at: z.union([z.string(), z.number()]).optional() })),
+    getLockdown: () => request('/api/lockdown', z.object({ locked: z.boolean(), at: timestampSchema.optional() })),
     resetDemo: () => request('/api/demo/reset', z.object({ ok: z.literal(true), locked: z.boolean() }), {}),
   };
 }
