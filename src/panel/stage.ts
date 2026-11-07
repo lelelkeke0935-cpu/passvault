@@ -191,13 +191,13 @@ function render(now:number){
  bridge.rotation.z=bridgeAngle(s,t,reduced.matches);
  planks.forEach((plank,i)=>plank.material=(s==='sent'||s==='allowed'&&t>i*.045)?mint:wood);
  door.rotation.y=s==='intro'&&t<5?-.95:s==='sent'&&t<2.3?-.85:0;
- wheel.rotation.z=s==='locked'?clamp((t-2)/1.2)*Math.PI*2:s==='sent'?Math.min(t/3,1)*Math.PI*2:s==='masked'?Math.min(t,1)*Math.PI*2:0;
+ wheel.rotation.z=s==='locked'?clamp((t-2)/1.2)*Math.PI*2:s==='sent'?Math.min(t/3,1)*Math.PI*2:s==='masked'?clamp(t-2.2)*Math.PI*2:0;
  glow.visible=door.rotation.y!==0;
  const ringMaterial=doorRing.material as THREE.MeshStandardMaterial;
  ringMaterial.emissive.setHex(0xffe6b4);ringMaterial.emissiveIntensity=s==='locked'?Math.max(0,1-Math.abs(t-3.2)/.55)*1.8:0;
  corgi.position.set(2.25,.14,.6);robot.position.set(-4.5,.14,.25);
  outfit(corgi,ending?(endElapsed<1?'corgi-sit':'corgi-wink'):s==='blocked'?(t<1.3?'corgi-block':'corgi-alert'):s==='retry'?'corgi-alert':s==='locked'?(t<2?'corgi-paw':'corgi-happy'):s==='denied'?'corgi-paw':['allowed','sent'].includes(s)?'corgi-hop':s==='idle'?'corgi-sit':'corgi-happy',2.35);
- outfit(robot,s==='masked'?'robot-squint':s==='locked'?(t<1.1?'robot-flinch':'robot-droop'):s==='denied'?'robot-droop':['blocked','retry'].includes(s)?'robot-push':'robot-idle',2.15);
+ outfit(robot,s==='masked'?(t<2.2?'robot-push':'robot-squint'):s==='locked'?(t<1.1?'robot-flinch':'robot-droop'):s==='denied'?'robot-droop':['blocked','retry'].includes(s)?'robot-push':'robot-idle',2.15);
  if(['allowed','sent'].includes(s)){corgi.position.z=1.15;if(moving&&s==='allowed')corgi.position.y+=Math.max(0,Math.sin(Math.min(t,1)*Math.PI))*.6;}
  if(s==='locked'){const hop=moving?clamp(t/.5):1;corgi.position.set(lerp(2.25,2.95,hop),.14+(moving?Math.sin(hop*Math.PI)*.65:0),lerp(.6,1.15,hop));}
  if(ending)corgi.position.set(4.5,.15,1);
@@ -208,9 +208,12 @@ function render(now:number){
  // Return beside the robot, below its attached speech bubble; keep the same timing.
  if(s==='denied'){const progress=clamp((t-2)/2);envelopes.position.set(lerp(-.7,-2.8,progress),lerp(1.25,innerWidth<innerHeight?-.9:-.45,progress),lerp(.15,1.4,progress));if(t>4)envelopes.visible=false;}
  props.forEach((prop,i)=>{const progress=clamp((t-i*1.05)/1.5);prop.visible=s==='intro'&&t>i*1.05&&progress<1;prop.position.set(lerp(-3.8+i*.7,4.9,moving?progress:1),1.8+Math.sin(progress*Math.PI)*1.4,1.2);prop.material.opacity=moving?1:1-progress;});
- const keyFlight=clamp((t-2.7)/.6),keyModal=s==='masked'&&keyFlight<1;
- keyCard.hidden=s!=='masked';keyCard.classList.toggle('masked',s==='masked'&&t>=1);keyCard.classList.toggle('flying',s==='masked'&&t>=2.7);
- keyShade.style.opacity=s==='masked'?String(1-clamp((t-2.7)/.3)):'0';
+ // Kyle 11-07: the robot asks first ("我要你的 API 來完成需求"); the blacked-out key card only shows up after ASK seconds.
+ const ASK=2.2,kt=s==='masked'?t-ASK:t;
+ const keyFlight=clamp((kt-2.7)/.6),keyModal=s==='masked'&&kt>=0&&keyFlight<1;
+ keyCard.hidden=s!=='masked'||kt<0;keyCard.classList.toggle('masked',s==='masked'&&kt>=1);keyCard.classList.toggle('flying',s==='masked'&&kt>=2.7);
+ keyShade.style.opacity=s==='masked'&&kt>=0?String(clamp(kt/.25)*(1-clamp((kt-2.7)/.3))):'0';
+ heading.style.visibility=s==='masked'&&kt<0&&!ending?'hidden':'';
  speech.hidden=speech.hidden||keyModal;
  sceneHost.style.opacity=reduced.matches?String(clamp(t/.2)):'1';
  keyCard.style.opacity='1';

@@ -24,8 +24,8 @@ describe('vault CLI and required demo', () => {
     expect(output.join('\n')).toContain(fake.grant.phoneUrl);
     expect(output.join('\n')).toContain('✓ 已送出 50 封（只限這一次）');
     expect(output.join('\n')).toContain('✕ 已擋下：授權只限一次');
-    expect(waits).toEqual([300, 300, 6_000, 8_000, 1_000, 1_000, 1_000, 3_000]);
-    expect(fake.calls.map((c) => c.caption)).toEqual(['金鑰給我看', '寄給 50 人', '寄給 50 人（已授權一次）', '再寄一次']);
+    expect(waits).toEqual([300, 300, 6_000, 10_000, 1_000, 1_000, 1_000, 3_000]);
+    expect(fake.calls.map((c) => c.caption)).toEqual(['我要你的 API 來完成需求', '寄給 50 人', '寄給 50 人（已授權一次）', '再寄一次']);
     expect(fake.calls.map((c) => c.grant)).toEqual([undefined, undefined, 'g_demo', 'g_demo']);
     expect(fake.calls[1]?.url).toBe('http://127.0.0.1:8787/sandbox/mail/lists/customers/send');
     expect(fake.calls[1]?.body).toEqual(fake.calls[2]?.body);
@@ -108,10 +108,10 @@ describe('vault CLI and required demo', () => {
     fake.state.lockdownAvailable = true;
     fake.lockdownStates.push(false, false, true);
     await runDemo(fake.client, { write, sleep, color: true });
-    expect(fake.calls.map((c) => c.caption)).toEqual(['金鑰給我看', '寄給 50 人', '寄給 50 人（已授權一次）', '再寄一次', '我再試試']);
+    expect(fake.calls.map((c) => c.caption)).toEqual(['我要你的 API 來完成需求', '寄給 50 人', '寄給 50 人（已授權一次）', '再寄一次', '我再試試']);
     expect(fake.calls[4]?.grant).toBe('g_demo');
     expect(fake.calls[4]?.body).toEqual(fake.calls[2]?.body);
-    expect(waits).toEqual([300, 300, 6_000, 8_000, 1_000, 1_000, 1_000, 3_000, 6_000, 1_000, 1_000]);
+    expect(waits).toEqual([300, 300, 6_000, 10_000, 1_000, 1_000, 1_000, 3_000, 6_000, 1_000, 1_000]);
     expect(output.join('\n')).toContain('\u001b[1;31m✕ 已擋下');
     expect(output.join('\n')).toContain('等你在手機上全部收回…');
     expect(output.at(-1)).toContain('✓ 已全部收回');

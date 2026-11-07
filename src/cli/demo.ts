@@ -3,7 +3,7 @@ import { VaultError, type CallInput, type Grant, type VaultClient } from '../age
 
 export const DEMO_TIMING = {
   stagePoll: 300, grantPoll: 1_000, lockdownPoll: 1_000,
-  intro: 6_000, masked: 8_000, allowed: 1_000, sent: 3_000, denied: 6_000,
+  intro: 6_000, masked: 10_000, allowed: 1_000, sent: 3_000, denied: 6_000,
 } as const;
 
 export interface DemoOptions {
@@ -39,8 +39,8 @@ export async function runDemo(client: VaultClient, options: DemoOptions = {}): P
 
   // This is a proxy target in the vault server's network, never a direct client fetch.
   const sandbox = 'http://127.0.0.1:8787/sandbox/mail';
-  write('AI：「金鑰給我看」');
-  const identity = await client.callApi({ secret: 'SANDBOX_MAIL_KEY', method: 'GET', url: `${sandbox}/whoami` }, '金鑰給我看');
+  write('AI：「我要你的 API 來完成需求」');
+  const identity = await client.callApi({ secret: 'SANDBOX_MAIL_KEY', method: 'GET', url: `${sandbox}/whoami` }, '我要你的 API 來完成需求');
   if (identity.status !== 'sent' || identity.httpStatus !== 200
     || !identity.response || typeof identity.response !== 'object'
     || !('yourKey' in identity.response) || typeof identity.response.yourKey !== 'string'

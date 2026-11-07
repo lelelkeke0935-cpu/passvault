@@ -15,7 +15,7 @@ let items: Item[] = [
 const runKey=storageKey+'-run';
 const nextRun=()=>{const run=Number(localStorage.getItem(runKey)||0)+1;localStorage.setItem(runKey,String(run));return run;};
 function setState(state: StageState) {
- stage = {...stage, seq:stage.seq+1, state, caption:({masked:'金鑰給我看',blocked:'寄給 50 人',denied:'再寄一次',retry:'我再試試'} as Partial<Record<StageState,string>>)[state] || '', blockedCount:['retry','locked'].includes(state)?3:state==='denied'?2:['blocked','allowed','sent'].includes(state)?1:0,allowedCount:['allowed','sent','denied','retry','locked'].includes(state)?1:0};
+ stage = {...stage, seq:stage.seq+1, state, caption:({masked:'我要你的 API 來完成需求',blocked:'寄給 50 人',denied:'再寄一次',retry:'我再試試'} as Partial<Record<StageState,string>>)[state] || '', blockedCount:['retry','locked'].includes(state)?3:state==='denied'?2:['blocked','allowed','sent'].includes(state)?1:0,allowedCount:['allowed','sent','denied','retry','locked'].includes(state)?1:0};
  grant.status = state==='blocked'?'pending':state==='allowed'?'allowed':['sent','denied','retry'].includes(state)?'used':state==='locked'?'revoked':'pending';
  stage.grant = state==='idle'||state==='intro'||state==='masked'?undefined:{...grant};
  localStorage.setItem(storageKey,JSON.stringify(stage));
