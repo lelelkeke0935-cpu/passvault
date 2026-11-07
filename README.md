@@ -6,10 +6,10 @@ PassVault is a vault for your passwords, API keys, documents and photos. When an
 
 > 每一次使用，都在你的授權之內。Every use stays within your authorization.
 
-- Live demo: <!-- PUBLIC_URL -->
+- Live demo: https://donors-cheese-competitors-violations.trycloudflare.com (vault panel at `/`, stage at `/stage`) — a free temporary tunnel, it may change after the event
 - Demo video: <!-- VIDEO_URL -->
 
-<!-- COVER -->
+![The stage: the AI asked to email 50 people, the corgi stops it until the owner authorizes on the phone](docs/cover.png)
 
 ## The 60-second demo
 
@@ -20,6 +20,27 @@ PassVault is a vault for your passwords, API keys, documents and photos. When an
 | 3 | The AI tries to email the whole customer list | Outside the rules: stopped before it reaches the API, and a one-time grant is opened |
 | 4 | The owner taps "authorize this once" on the phone | The request goes out — exactly once. Sending it again is refused |
 | 5 | The AI keeps trying; the owner taps "take everything back" | Every grant is revoked and every call refused until the owner unlocks |
+
+## Screens
+
+| Vault panel | Owner's phone (authorize once → take everything back) |
+|---|---|
+| ![Vault panel](docs/panel.png) | ![Phone remote](docs/phone.png) |
+
+## Use it from Codex or Claude Code (MCP)
+
+The AI side is a thin stdio MCP server with two tools, `list_secrets` and `call_api`. It holds no secrets — only the vault URL and an agent token.
+
+```bash
+# Codex
+codex mcp add passvault --env PASSVAULT_URL=https://your-vault --env PASSVAULT_AGENT_TOKEN=... -- npx tsx src/mcp/server.ts
+# Claude Code
+claude mcp add passvault -e PASSVAULT_URL=https://your-vault -e PASSVAULT_AGENT_TOKEN=... -- npx tsx src/mcp/server.ts
+```
+
+Tested live with OpenAI Codex: asked to print the key, it received `Bearer ▮▮▮▮`; asked to email the whole list, the vault stopped it and waited for the owner.
+
+![Codex through MCP](docs/codex-mcp.png)
 
 ## How it works
 
@@ -61,4 +82,15 @@ npm test
 
 Node 24+. SQLite (better-sqlite3), Hono, Vite, three.js, `@modelcontextprotocol/sdk`. Documents and photos go to any S3-compatible bucket when the `WASABI_*` variables are set, otherwise to `data/blobs/` (still ciphertext).
 
-Built in one day at the hackathon on 2026-11-07.
+## How it was built
+
+Written on 2026-11-07 during the hackathon (10:30–15:00) by four AI agents working in parallel on three machines, coordinated through a shared git remote and the hand-off notes in `handoff/`:
+
+| Agent | Machine | Owned |
+|---|---|---|
+| Claude Code | laptop | server, crypto core, rules, proxy, grants, integration, deploys |
+| Codex | laptop | vault panel, phone pages, the 3D island stage |
+| Claude Code | dev server | test mail API, acceptance script, audit chain, leak scanner |
+| Codex | Mac mini | MCP server, CLI, scripted demo |
+
+Tests: `npm test` (81) and `scripts/check.sh <url>` against the live site (10/10).
