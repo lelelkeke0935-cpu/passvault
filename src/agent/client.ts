@@ -90,7 +90,21 @@ export function createClient(options: ClientOptions = {}) {
   }
   const agent = options.agent ?? 'vault-cli';
 
+  // Demo day: retry brief tunnel hiccups (Cloudflare 502/503/504/52x or a dropped connection) a few times.
   async function request<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await requestOnce(path, schema, body);
+      } catch (error) {
+        const status = error instanceof VaultError ? error.httpStatus : undefined;
+        const transient = status === undefined ? !(error instanceof VaultError && /格式/.test(error.message)) : [502, 503, 504, 520, 521, 522, 523, 524, 530].includes(status);
+        if (!transient || attempt >= 3 || options.signal?.aborted) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+  }
+
+  async function requestOnce<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
     try {
       const timeout = AbortSignal.timeout(options.timeoutMs ?? 10_000);
       const response = await fetch(new URL(path, baseUrl), {
