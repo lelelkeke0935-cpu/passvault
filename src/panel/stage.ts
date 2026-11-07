@@ -4,15 +4,20 @@ import meta from './assets/stage/meta.json';
 import {api, post, poll, isMock, escapeHtml, brand} from './common';
 import type {Stage, StageState} from './types';
 import './stage.css';
+import {blockedLabel, bridgeAngle, endingElapsed, closingCounts, closingPhase} from './stage-model';
 
 const root=document.querySelector<HTMLDivElement>('#app')!;
-root.innerHTML=`<main class="stage" aria-label="腿庫小島"><div class="scene" aria-hidden="true"></div><div class="stage-heading" aria-live="polite"></div><div class="speech"></div><div class="envelope-count" hidden>×50</div><aside class="stage-grant"></aside><div class="key-card" hidden><small>展示用假金鑰</small><div class="key-value">sk-7Hq2-9xPf<span class="ink-swipe"></span></div><strong>AI 只看得到這樣</strong></div><div class="stage-end" hidden><div class="brand">${brand}</div><p>每一次使用，都在你的授權之內。</p><small>Give AI access. Not your secrets.</small></div><div class="stage-footer"><span>PassVault 推庫</span><span class="stage-hint">空白鍵開場</span></div><div class="connection" role="status"></div><div class="loading" role="status"><span class="loading-mark">▰</span><strong>載入中</strong><p>腿庫正在準備小島</p></div><dialog class="pass-dialog"><form><div class="brand">${brand}</div><h2>舞台通行碼</h2><p>只在這次開啟的頁面使用。</p><label for="stage-pass">通行碼</label><input id="stage-pass" type="password" autocomplete="off" required><button type="submit">進入舞台</button><p class="pass-note">請在投影前輸入。</p></form></dialog></main>`;
+root.innerHTML=`<main class="stage" aria-label="腿庫小島"><div class="scene" aria-hidden="true"></div><div class="blocked-counter" hidden aria-live="polite"></div><div class="stage-heading" aria-live="polite"></div><div class="speech"></div><div class="envelope-count" hidden>×50</div><aside class="stage-grant"></aside><div class="key-card" hidden><small>展示用假金鑰</small><div class="key-value">sk-7Hq2-9xPf<span class="ink-swipe"></span></div><strong>AI 只看得到這樣</strong></div><div class="closing-numbers" hidden aria-live="polite"></div><div class="stage-end" hidden><div class="brand">${brand}</div><p>每一次使用，都在你的授權之內。</p><small>Give AI access. Not your secrets.</small></div><div class="stage-footer"><span>PassVault 推庫</span><span class="stage-hint">空白鍵開場</span></div><div class="connection" role="status"></div><div class="loading" role="status"><span class="loading-mark">▰</span><strong>載入中</strong><p>腿庫正在準備小島</p></div><dialog class="pass-dialog"><form><div class="brand">${brand}</div><h2>舞台通行碼</h2><p>只在這次開啟的頁面使用。</p><label for="stage-pass">通行碼</label><input id="stage-pass" type="password" autocomplete="off" required><button type="submit">進入舞台</button><p class="pass-note">請在投影前輸入。</p></form></dialog></main>`;
 const shell=root.querySelector<HTMLElement>('.stage')!;
 const sceneHost=root.querySelector<HTMLElement>('.scene')!;
+const counter=root.querySelector<HTMLElement>('.blocked-counter')!;
+let lastBlockedLabel='';
 const heading=root.querySelector<HTMLElement>('.stage-heading')!;
 const speech=root.querySelector<HTMLElement>('.speech')!;
 const grantCard=root.querySelector<HTMLElement>('.stage-grant')!;
 const keyCard=root.querySelector<HTMLElement>('.key-card')!;
+const numbersCard=root.querySelector<HTMLElement>('.closing-numbers')!;
+let closingSnapshot:ReturnType<typeof closingCounts>|undefined;
 const endCard=root.querySelector<HTMLElement>('.stage-end')!;
 const connection=root.querySelector<HTMLElement>('.connection')!;
 const dialog=root.querySelector<HTMLDialogElement>('dialog')!;
@@ -72,11 +77,15 @@ const props:THREE.Sprite[]=[];
 function setState(next:Stage){
  const changed=next.state!==data.state || (next.state==='intro'&&next.seq!==data.seq);
  data=next;
- if(changed){stateStart=performance.now();ending=false;keyCard.classList.remove('masked','flying');if(next.state==='blocked'||next.state==='denied')sound([130,90]);if(next.state==='allowed')sound([520,780]);if(next.state==='sent')sound([660]);if(next.state==='intro')sound([440,550,660,880]);}
- const titles:Partial<Record<StageState,string>>={masked:'AI 只拿到塗黑的金鑰',blocked:'已擋下',allowed:'已授權一次',sent:'已授權一次',denied:'授權只限一次'};
- heading.textContent=titles[data.state]||'';heading.dataset.tone=['blocked','denied'].includes(data.state)?'red':['allowed','sent'].includes(data.state)?'mint':'ink';heading.hidden=!titles[data.state];
- speech.textContent=data.caption;speech.hidden=!data.caption;
- grantCard.hidden=data.state!=='blocked';
+ const label=blockedLabel(next.blockedCount);
+ counter.hidden=!label;shell.classList.toggle('has-counter',!!label);
+ if(label!==lastBlockedLabel){counter.textContent=label;counter.classList.remove('count-bump');void counter.offsetWidth;counter.classList.add('count-bump');lastBlockedLabel=label;}
+ if(changed){stateStart=performance.now();ending=false;closingSnapshot=undefined;keyCard.classList.remove('masked','flying');if(next.state==='blocked'||next.state==='denied')sound([130,90]);if(next.state==='allowed')sound([520,780]);if(next.state==='sent')sound([660]);if(next.state==='locked')sound([220,110,330]);if(next.state==='intro')sound([440,550,660,880]);}
+ const titles:Partial<Record<StageState,string>>={masked:'AI 只拿到塗黑的金鑰',blocked:'已擋下',allowed:'已授權一次',sent:'已授權一次',denied:'授權只限一次',locked:'已全部收回'};
+ heading.dataset.state=data.state;heading.textContent=titles[data.state]||'';heading.dataset.tone=['blocked','denied'].includes(data.state)?'red':['allowed','sent'].includes(data.state)?'mint':'ink';heading.hidden=!titles[data.state];
+ speech.textContent=data.state==='retry'?'我再試試':data.caption;speech.hidden=!speech.textContent||data.state==='locked';
+ grantCard.hidden=!['blocked','retry'].includes(data.state);
+ if(data.state==='retry')grantCard.innerHTML='<h2>AI 還想再試</h2><p class="once">收回所有授權</p><div class="stage-lock-hint">全部收回</div><div class="phone-hint">請在手機按「全部收回」</div>';
  if(data.state==='blocked')grantCard.innerHTML=`<span class="card-eyebrow">已擋下，等你授權</span><h2>${escapeHtml(data.grant?.summary||'要寄給 50 人')}</h2><p class="once">只限這一次</p><dl><div><dt>誰提出請求</dt><dd>${escapeHtml(data.grant?.agent||'AI')}</dd></div><div><dt>使用的金鑰</dt><dd>${escapeHtml(data.grant?.secretName||'—')}</dd></div></dl><div class="phone-hint">請在手機按「授權這一次」</div>`;
  root.querySelector<HTMLElement>('.stage-hint')!.textContent=data.state==='idle'?'空白鍵開場':isMock?'示範模式':'';
 }
@@ -85,20 +94,24 @@ const lerp=THREE.MathUtils.lerp;const clamp=(n:number)=>THREE.MathUtils.clamp(n,
 function render(now:number){
  if(!ready)return;
  const t=(now-stateStart)/1000,s=data.state,phone=innerWidth<innerHeight;
- const endElapsed=Math.max(0,t-8);
- if(s==='denied'&&t>8)ending=true;
+ const endTime=endingElapsed(s,t);
+ ending=endTime!==null;
+ const endElapsed=endTime??0;
  const moving=!reduced.matches;
  const blocked=['blocked','denied'].includes(s);
  threshold.visible=blocked&&!ending;
- bridge.rotation.z=0;
+ bridge.rotation.z=bridgeAngle(s,t,reduced.matches);
  planks.forEach((plank,i)=>plank.material=(s==='sent'||s==='allowed'&&t>i*.045)?mint:wood);
  door.rotation.y=s==='intro'&&t<5?-.95:s==='sent'&&t<2.3?-.85:0;
- wheel.rotation.z=s==='sent'?Math.min(t/3,1)*Math.PI*2:s==='masked'?Math.min(t,1)*Math.PI*2:0;
+ wheel.rotation.z=s==='locked'?clamp((t-2)/1.2)*Math.PI*2:s==='sent'?Math.min(t/3,1)*Math.PI*2:s==='masked'?Math.min(t,1)*Math.PI*2:0;
  glow.visible=door.rotation.y!==0;
+ const ringMaterial=doorRing.material as THREE.MeshStandardMaterial;
+ ringMaterial.emissive.setHex(0xffe6b4);ringMaterial.emissiveIntensity=s==='locked'?Math.max(0,1-Math.abs(t-3.2)/.55)*1.8:0;
  corgi.position.set(2.25,.14,.6);robot.position.set(-4.5,.14,.25);
- outfit(corgi,ending?(endElapsed<1?'corgi-sit':'corgi-wink'):s==='blocked'?(t<1.3?'corgi-block':'corgi-alert'):s==='denied'?'corgi-paw':['allowed','sent'].includes(s)?'corgi-hop':s==='idle'?'corgi-sit':'corgi-happy',2.35);
- outfit(robot,s==='masked'?'robot-squint':s==='denied'?'robot-droop':s==='blocked'?'robot-push':'robot-idle',2.15);
+ outfit(corgi,ending?(endElapsed<1?'corgi-sit':'corgi-wink'):s==='blocked'?(t<1.3?'corgi-block':'corgi-alert'):s==='retry'?'corgi-alert':s==='locked'?(t<2?'corgi-paw':'corgi-happy'):s==='denied'?'corgi-paw':['allowed','sent'].includes(s)?'corgi-hop':s==='idle'?'corgi-sit':'corgi-happy',2.35);
+ outfit(robot,s==='masked'?'robot-squint':s==='locked'?(t<1.1?'robot-flinch':'robot-droop'):s==='denied'?'robot-droop':['blocked','retry'].includes(s)?'robot-push':'robot-idle',2.15);
  if(['allowed','sent'].includes(s)){corgi.position.z=1.15;if(moving&&s==='allowed')corgi.position.y+=Math.max(0,Math.sin(Math.min(t,1)*Math.PI))*.6;}
+ if(s==='locked'){const hop=moving?clamp(t/.5):1;corgi.position.set(lerp(2.25,2.95,hop),.14+(moving?Math.sin(hop*Math.PI)*.65:0),lerp(.6,1.15,hop));}
  if(ending)corgi.position.set(4.5,.15,1);
  envelopes.visible=['blocked','allowed','sent','denied'].includes(s)&&!ending;
  envelopes.position.set(-.7,1.25,.15);
@@ -108,10 +121,17 @@ function render(now:number){
  keyCard.hidden=s!=='masked';keyCard.classList.toggle('masked',s==='masked'&&t>=1);keyCard.classList.toggle('flying',s==='masked'&&t>=4.5);
  sceneHost.style.opacity=reduced.matches?String(clamp(t/.2)):'1';
  keyCard.style.opacity=reduced.matches&&s==='masked'&&t>4.5?String(1-clamp((t-4.5)/1.6)):'1';
- endCard.hidden=!ending||endElapsed<1.6;
+ if(ending&&closingSnapshot===undefined){
+  closingSnapshot=closingCounts(data);
+  numbersCard.innerHTML=closingSnapshot?closingSnapshot.map((count,index)=>`<div class="closing-stat"><span>${['AI 拿到金鑰','擋下','你授權'][index]}</span><strong>${count}<small>次</small></strong></div>`).join(''):'';
+ }
+ const phase=closingPhase(endElapsed,!!closingSnapshot);
+ numbersCard.hidden=!ending||phase!=='numbers';
+ endCard.hidden=!ending||phase!=='brand';
+ counter.classList.toggle('faded',ending);
  if(ending){heading.hidden=true;speech.hidden=true;grantCard.hidden=true;}
- const focus=phone?(ending?3.7:s==='intro'?2:s==='masked'?-1.2:-.7):.4;
- const desired=new THREE.Vector3(focus+(phone?2.1:3),phone?7:6.6,phone?28:18.8);
+ const focus=phone?(ending||s==='locked'?3.7:s==='intro'?2:s==='masked'?-1.2:-.7):.4;
+ const desired=new THREE.Vector3(focus+(phone?2.1:3),phone?7:6.6,phone?(s==='locked'?30:28):(s==='locked'?21:18.8));
  if(!moving)camera.position.copy(desired);else camera.position.lerp(desired,.055);
  camera.lookAt(focus,phone?1.25:.9,0);
  if(moving)clouds.position.x=Math.sin(now*.00008)*.3;
@@ -123,7 +143,7 @@ function render(now:number){
  requestAnimationFrame(render);
 }
 async function command(path:string){if(!ready||busy||dialog.open)return;busy=true;try{await post(path,{'X-Stage-Token':stageToken});connection.textContent='';}catch{connection.textContent='動作未完成，請確認通行碼與連線。';}finally{busy=false;}}
-document.addEventListener('keydown',event=>{if(event.repeat||dialog.open||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLInputElement)return;const key=event.key.toLowerCase();if(event.code==='Space'){event.preventDefault();try{audioContext??=new AudioContext();void audioContext.resume();}catch{/* Silent mode still runs the stage. */}void command('/api/stage/intro');}if(key==='a'&&data.state==='blocked'&&data.grant?.status==='pending')void command(`/api/grants/${encodeURIComponent(data.grant.id)}/allow-stage`);});
+document.addEventListener('keydown',event=>{if(event.repeat||dialog.open||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof HTMLInputElement)return;const key=event.key.toLowerCase();if(event.code==='Space'){event.preventDefault();try{audioContext??=new AudioContext();void audioContext.resume();}catch{/* Silent mode still runs the stage. */}void command('/api/stage/intro');}if(key==='a'&&data.state==='blocked'&&data.grant?.status==='pending')void command(`/api/grants/${encodeURIComponent(data.grant.id)}/allow-stage`);if(key==='l')void command('/api/lockdown/stage');if(key==='r')void command('/api/demo/reset');});
 dialog.addEventListener('cancel',event=>event.preventDefault());
 dialog.querySelector('form')!.addEventListener('submit',event=>{event.preventDefault();const input=dialog.querySelector<HTMLInputElement>('input')!;stageToken=input.value;input.value='';dialog.close();});
 async function boot(){try{
