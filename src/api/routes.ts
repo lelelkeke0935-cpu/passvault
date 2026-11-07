@@ -125,7 +125,7 @@ export function buildApi(ctx: Ctx): Hono {
     if (!isPhone(c)) return unauthorized(c);
     const g = currentGrant();
     const body: Record<string, unknown> = { state: ctx.stage.state, locked: lockState(ctx.db).locked };
-    if (g && g.status === 'pending') body.grant = grantView(g);
+    if (g && g.status === 'pending' && Date.parse(g.expires_at) >= Date.now()) body.grant = grantView(g);
     return c.json(body);
   });
 
@@ -151,6 +151,8 @@ export function buildApi(ctx: Ctx): Hono {
   });
   api.post('/stage/intro', (c) => {
     if (!isStage(c)) return unauthorized(c);
+    // Only from the start: a second space bar on stage must not restart a running demo.
+    if (ctx.stage.state !== 'idle') return c.json({ ok: false, state: ctx.stage.state });
     ctx.stage.set('intro');
     return c.json({ ok: true });
   });

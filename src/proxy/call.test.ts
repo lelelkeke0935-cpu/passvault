@@ -161,6 +161,9 @@ describe('proxy', () => {
     expect(r.state).toBe('blocked');
     expect(r.grant.summary).toBe('寄給 50 人');
     expect((await app.request('/api/stage/intro', { method: 'POST' })).status).toBe(401);
-    expect((await app.request('/api/stage/intro', { method: 'POST', headers: STAGE })).status).toBe(200);
+    expect((await (await app.request('/api/stage/intro', { method: 'POST', headers: STAGE })).json()).ok).toBe(false);
+    await app.request('/api/demo/reset', { method: 'POST', headers: STAGE });
+    expect((await (await app.request('/api/stage/intro', { method: 'POST', headers: STAGE })).json()).ok).toBe(true);
+    expect((await (await app.request('/api/stage/intro', { method: 'POST', headers: STAGE })).json()).ok).toBe(false);
   });
 });
