@@ -12,7 +12,8 @@ let items: Item[] = [
  {id:'3',type:'document',name:'產品介紹.pdf',size:482400,createdAt:now},
  {id:'4',type:'photo',name:'小島的午後.webp',size:1280000,createdAt:now},
 ];
-let generation = 0;
+const runKey=storageKey+'-run';
+const nextRun=()=>{const run=Number(localStorage.getItem(runKey)||0)+1;localStorage.setItem(runKey,String(run));return run;};
 function setState(state: StageState) {
  stage = {...stage, seq:stage.seq+1, state, caption:({masked:'金鑰給我看',blocked:'寄給 50 人',denied:'再寄一次',retry:'我再試試'} as Partial<Record<StageState,string>>)[state] || '', blockedCount:['retry','locked'].includes(state)?3:state==='denied'?2:['blocked','allowed','sent'].includes(state)?1:0,allowedCount:['allowed','sent','denied','retry','locked'].includes(state)?1:0};
  grant.status = state==='blocked'?'pending':state==='allowed'?'allowed':['sent','denied','retry'].includes(state)?'used':state==='locked'?'revoked':'pending';
@@ -20,15 +21,15 @@ function setState(state: StageState) {
  localStorage.setItem(storageKey,JSON.stringify(stage));
 }
 if (valid.has(initial)) setState(initial);
-function refresh(){ if(valid.has(initial)) return; try {const raw=localStorage.getItem(storageKey);if(raw){const data=JSON.parse(raw);if(valid.has(data.state)){stage=data;if(data.grant)Object.assign(grant,data.grant);}}}catch {/* Synthetic state is disposable. */} }
-const later=(state:StageState, ms:number, run:number)=>setTimeout(()=>{if(generation===run)setState(state);},ms);
+function refresh(){ try {const raw=localStorage.getItem(storageKey);if(raw){const data=JSON.parse(raw);if(valid.has(data.state)){stage=data;if(data.grant)Object.assign(grant,data.grant);}}}catch {/* Synthetic state is disposable. */} }
+const later=(state:StageState, ms:number, run:number)=>setTimeout(()=>{refresh();if(Number(localStorage.getItem(runKey))===run)setState(state);},ms);
 export async function mockRequest(path: string, init: RequestInit) {
  refresh(); const url = new URL(path,location.origin);const route=url.pathname;const write=init.method==='POST';
  await new Promise(resolve=>setTimeout(resolve,40));
- if(write && route==='/api/stage/intro'){setState('intro');const run=++generation;later('masked',6000,run);later('blocked',14000,run);return {ok:true};}
- if(write && route==='/api/demo/reset'){generation++;setState('idle');return {ok:true,locked:false};}
- if(write && route.includes('/api/lockdown')){generation++;setState('locked');return {locked:true};}
- if(write && /\/allow(?:-stage)?$/.test(route)){if(grant.status!=='pending')return {...grant};setState('allowed');const run=++generation;later('sent',1000,run);later('denied',4000,run);return {...grant};}
+ if(write && route==='/api/stage/intro'){setState('intro');const run=nextRun();later('masked',6000,run);later('blocked',14000,run);return {ok:true};}
+ if(write && route==='/api/demo/reset'){nextRun();setState('idle');return {ok:true,locked:false};}
+ if(write && route.includes('/api/lockdown')){nextRun();setState('locked');return {locked:true};}
+ if(write && /\/allow(?:-stage)?$/.test(route)){if(grant.status!=='pending')return {...grant};setState('allowed');const run=nextRun();later('sent',1000,run);later('denied',4000,run);later('retry',10000,run);return {...grant};}
  if(write && route.endsWith('/deny')){grant.status='denied';stage.grant={...grant};localStorage.setItem(storageKey,JSON.stringify(stage));return {...grant};}
  if(route==='/api/stage') return {...stage};
  if(route==='/api/remote') return {state:stage.state,locked:stage.state==='locked',grant:stage.state==='blocked'&&grant.status==='pending'?{...grant}:undefined};
