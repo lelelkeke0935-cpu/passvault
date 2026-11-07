@@ -24,9 +24,10 @@ export function buildApi(ctx: Ctx): Hono {
   const unauthorized = (c: Context) => c.json({ error: '需要通行碼' }, 401);
 
   /** Grant as the panel/stage/phone sees it. The token-bearing URL only goes to the owner (stage token). */
+  const AGENT_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', 'vault-cli': 'AI 助理' };
   const grantView = (g: GrantRow, owner = false) => ({
     id: g.id,
-    agent: g.agent,
+    agent: AGENT_NAMES[g.agent] ?? g.agent,
     secretName: g.secret_name,
     summary: g.summary,
     status: g.status,
