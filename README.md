@@ -7,7 +7,7 @@ PassVault is a vault for your passwords, API keys, documents and photos. When an
 > 每一次使用，都在你的授權之內。Every use stays within your authorization.
 
 - Live demo: https://donors-cheese-competitors-violations.trycloudflare.com (vault panel at `/`, stage at `/stage`) — a free temporary tunnel, it may change after the event
-- Demo video: <!-- VIDEO_URL -->
+- Demo video: https://youtu.be/1dGEgq6qjso
 
 ![The stage: the AI asked to email 50 people, the corgi stops it until the owner authorizes on the phone](docs/cover.png)
 
