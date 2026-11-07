@@ -23,7 +23,7 @@ const numbersCard=root.querySelector<HTMLElement>('.closing-numbers')!;
 let closingSnapshot:ReturnType<typeof closingCounts>|undefined;
 const endCard=root.querySelector<HTMLElement>('.stage-end')!;
 const contactCard=document.createElement('div');contactCard.className='closing-contact';contactCard.hidden=true;
-contactCard.innerHTML=`<div class="contact-text"><div class="brand">${brand}</div><p class="contact-say">想試用、想合作？<br>掃 QR，<b>直接寄信給我</b></p><span class="contact-mail">lelelkeke0935@gmail.com</span></div><img class="contact-qr" src="${new URL('./assets/stage/contact-qr.svg',import.meta.url).href}" alt="寄信給 PassVault 推庫的 QR code">`;
+contactCard.innerHTML=`<div class="contact-text"><div class="brand">${brand}</div><p class="contact-say">想試用、想合作？<br>掃 QR，<b>直接寄信給我</b></p></div><img class="contact-qr" src="${new URL('./assets/stage/contact-qr.svg',import.meta.url).href}" alt="寄信給 PassVault 推庫的 QR code">`;
 closingScreen.append(numbersCard,endCard,contactCard);
 const mascot=document.createElement('img');mascot.className='closing-mascot';mascot.alt='開心眨眼的腿庫';mascot.src=new URL('./assets/stage/corgi-wink.webp',import.meta.url).href;endCard.append(mascot);
 const connection=root.querySelector<HTMLElement>('.connection')!;
