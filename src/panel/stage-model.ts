@@ -27,8 +27,9 @@ export function closingCounts(stage: Stage): [number, number, number] | null {
 
 export function closingPhase(elapsed: number, hasCounts: boolean): 'settle'|'numbers'|'brand'|'contact' {
   if (elapsed < 1.6) return 'settle';
-  if (hasCounts && elapsed < 4.1) return 'numbers';
-  if (elapsed < 8.6) return 'brand';
+  // Kyle 11-07: the demo itself ends at 50-55 s, then the contact QR adds 5-10 s.
+  if (hasCounts && elapsed < 5.1) return 'numbers';
+  if (elapsed < 11.6) return 'brand';
   // Kyle 11-07: after the brand, a contact screen with a mail QR stays up so the audience can scan it.
   return 'contact';
 }
