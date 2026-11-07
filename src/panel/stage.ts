@@ -200,7 +200,7 @@ function render(now:number){
  outfit(robot,s==='masked'?(t<2.2?'robot-push':'robot-squint'):s==='locked'?(t<1.1?'robot-flinch':'robot-droop'):s==='denied'?'robot-droop':['blocked','retry'].includes(s)?'robot-push':'robot-idle',2.15);
  if(['allowed','sent'].includes(s)){corgi.position.z=1.15;if(moving&&s==='allowed')corgi.position.y+=Math.max(0,Math.sin(Math.min(t,1)*Math.PI))*.6;}
  if(s==='locked'){const hop=moving?clamp(t/.5):1;corgi.position.set(lerp(2.25,2.95,hop),.14+(moving?Math.sin(hop*Math.PI)*.65:0),lerp(.6,1.15,hop));}
- if(ending)corgi.position.set(4.5,.15,1);
+ if(ending)corgi.position.set(4.5,.15,2.3);
  outfit(envelopes,'prop-envelopes',innerWidth<innerHeight?1.05:1.6);
  envelopes.visible=['blocked','allowed','sent','denied'].includes(s)&&!ending;
  envelopes.position.set(-.7,1.25,.15);
