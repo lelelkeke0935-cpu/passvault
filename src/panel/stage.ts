@@ -154,7 +154,10 @@ async function boot(){try{
  for(const name of ['prop-password','prop-key','prop-doc','prop-photo'])props.push(sprite(name,1.1));
  camera.position.set(3.4,6.6,18.8);resize();addEventListener('resize',resize);ready=true;setState(data);requestAnimationFrame(render);
  root.querySelector<HTMLElement>('.loading')!.hidden=true;
- if(!isMock)dialog.showModal();
+ // A launcher link may carry the stage pass in the hash (#t=...); take it into memory and drop it from the address bar.
+ const hashToken=new URLSearchParams(location.hash.slice(1)).get('t');
+ if(hashToken){stageToken=hashToken;history.replaceState(null,'',location.pathname+location.search);}
+ if(!isMock&&!stageToken)dialog.showModal();
  poll(async()=>{try{const next=await api<Stage>('/api/stage');if(!['idle','intro','masked','blocked','allowed','sent','denied','retry','locked'].includes(next.state))return;setState(next);connection.textContent='';}catch{connection.textContent='連線中…';}},300);
  }catch{root.querySelector<HTMLElement>('.loading')!.innerHTML='<strong>素材尚未載入完成</strong><p>請重新整理，再進入舞台。</p>';}}
 void boot();
