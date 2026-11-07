@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { callInputSchema, createClient, safeErrorMessage, type VaultClient } from '../agent/client.ts';
 
-export function createMcpServer(client: VaultClient = createClient({ agent: 'claude-code' })): Server {
+export function createMcpServer(client: VaultClient = createClient({ agent: process.env.PASSVAULT_AGENT_NAME || 'claude-code' })): Server {
   const server = new Server({ name: 'passvault', version: '0.1.0' }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
@@ -25,6 +25,7 @@ export function createMcpServer(client: VaultClient = createClient({ agent: 'cla
             url: { type: 'string', format: 'uri' },
             body: {},
             grant: { type: 'string', minLength: 1 },
+            caption: { type: 'string', description: '用一句短話說明這一步要做什麼（例如「寄給 50 人」），會顯示在主人的舞台上。' },
           },
           required: ['secret', 'method', 'url'],
           additionalProperties: false,
@@ -40,9 +41,11 @@ export function createMcpServer(client: VaultClient = createClient({ agent: 'cla
         return { content: [{ type: 'text', text: JSON.stringify(await client.listSecrets()) }] };
       }
       if (params.name === 'call_api') {
-        const input = callInputSchema.safeParse(params.arguments);
+        const { caption, ...args } = (params.arguments ?? {}) as Record<string, unknown>;
+        const input = callInputSchema.safeParse(args);
         if (!input.success) return failure('call_api 參數格式不正確。');
-        const result = await client.callApi(input.data, '使用保險箱呼叫 API');
+        const said = typeof caption === 'string' && caption.trim() ? caption.trim().slice(0, 24) : '使用保險箱呼叫 API';
+        const result = await client.callApi(input.data, said);
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       }
       return failure('沒有這個工具。');
